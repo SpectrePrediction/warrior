@@ -103,7 +103,7 @@ with wr.Graph().as_default():
     real_y = wr.Placeholder(input_y.shape, type(input_y), name="real_y")
 
     weight = wr.Variable(np.random.normal(loc=0.0, scale=1.0, size=(1, 1)), name="weight")
-    bias = wr.Variable(np.random.normal(loc=0.0, scale=1.0, size=()), name="bias")
+    bias = wr.Variable(np.random.normal(loc=0.0, scale=1.0, size=(1, 1)), name="bias")
 
     y = weight*x + bias
     # sse和方差损失(等reduce mean可以变均方差损失,或者sse/批大小）
