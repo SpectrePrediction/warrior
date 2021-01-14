@@ -12,7 +12,7 @@ from .util import util
 # Attack = DynamicGraph
 # Defense
 
-__Version__ = "1.1.3"
+__Version__ = "1.1.11"
 DEFAULT_GRAPH = builtins.DEFAULT_GRAPH = Graph()
 
 

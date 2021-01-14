@@ -14,6 +14,14 @@ class SaveError(Exception):
     pass
 
 
+class ReStoreWarning(Exception):
+    pass
+
+
+class ReStoreError(Exception):
+    pass
+
+
 class WarriorIsSoSad(Exception):
     pass
 

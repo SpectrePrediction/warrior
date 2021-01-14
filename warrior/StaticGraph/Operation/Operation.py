@@ -19,8 +19,7 @@ class Operation(object):
         # 节点所属的图 (DEFAULT_GRAPH是全局变量)
         self.graph = DEFAULT_GRAPH
 
-        self.name = name if name else str(self.__class__).split(".")[-1].split("'")[0] +\
-                                      DEFAULT_GRAPH.get_op_default_name(self.__class__)
+        self.name = name + DEFAULT_GRAPH.get_graph_id() if name else DEFAULT_GRAPH.get_op_default_name(self.__class__)
 
         self.tensor = Tensor(*input_node, dtype=None, name=self.name)
 
@@ -45,6 +44,9 @@ class Operation(object):
 
     def __str__(self):
         return str(self.tensor)
+
+    def __repr__(self):
+        return self.__str__()
 
     def compute_output(self):
         """
@@ -111,8 +113,7 @@ class Constant(Operation):
 
         self.value = value
         # 注意，根节点没有构造父类,名字得自己取
-        self.name = name if name else str(self.__class__).split(".")[-1].split("'")[0] + \
-                                      DEFAULT_GRAPH.get_op_default_name(self.__class__)
+        self.name = name + DEFAULT_GRAPH.get_graph_id() if name else DEFAULT_GRAPH.get_op_default_name(self.__class__)
 
         self.tensor = Tensor(None, dtype=type(value), name=self.name)
         self.graph = DEFAULT_GRAPH
@@ -135,6 +136,8 @@ class Variable(Operation):
         在tensorflow中，Variable是通过使用函数来更新变量的值。
         我的本意是改变他，使得他可以直接承接节点来完成更新
         但我有些犹豫。也许会在未来版本被移除此特性
+        他目前还没有变量的样子，比如改变值
+        如果未来修改了他，那么output中的if self.tensor.output_value is None需要移除
         :param initial_value_or_op:
         :param name:
         :param trainable:
@@ -142,12 +145,12 @@ class Variable(Operation):
         if initial_value_or_op is None:
             Error("Variable initial_value: 必须指定初始值", is_raise=True, exc_info=ValueError)
 
-        self.name = name if name else str(self.__class__).split(".")[-1].split("'")[0] + \
-                                      DEFAULT_GRAPH.get_op_default_name(self.__class__)
+        self.name = name + DEFAULT_GRAPH.get_graph_id() if name else DEFAULT_GRAPH.get_op_default_name(self.__class__)
         self.initial_value = None
 
         if isinstance(initial_value_or_op, Operation):
             Error("你之所以会看到此条警告，原因是你使用Variable来承接了一个节点\n"
+                  " 警告节点 " + str(self.name) + ", \n其承接节点 " + str(initial_value_or_op.name) + "\n"
                   "Variable的使用我觉得并不应被用来承接其他节点，他更应该是一个数\n"
                   "我还在观察他。当他作为节点变量时，变量的梯度计算并未完成\n"
                   "所以请注意，训练时最好是传入值而非节点，否则可能出现使用训练时无法求梯度错误\n"
@@ -204,8 +207,7 @@ class Variable(Operation):
 class Placeholder(Operation):
     def __init__(self, shape, dtype, name=None):
         self.value = None
-        self.name = name if name else str(self.__class__).split(".")[-1].split("'")[0] + \
-                                      DEFAULT_GRAPH.get_op_default_name(self.__class__)
+        self.name = name + DEFAULT_GRAPH.get_graph_id() if name else DEFAULT_GRAPH.get_op_default_name(self.__class__)
 
         self.tensor = Tensor(None, dtype=dtype, name=self.name)
         self.tensor.shape = tuple(shape)
@@ -502,6 +504,39 @@ class Square(Operation):
         return grad*np.multiply(2.0, input_value)
 
 
+class Reshape(Operation):
+    def __init__(self, x, shape, name=None):
+        super(self.__class__, self).__init__(x, name=name)
+        self.old_shape = None
+        self.shape = shape
+
+    def compute_output(self):
+        try:
+            x, = self.tensor.input_nodes
+            self.old_shape = x.tensor.output_value.shape
+            self.tensor.output_value = np.reshape(x.tensor.output_value, self.shape)
+        except TypeError as err:
+            Error("出现无法获取节点值，可能源于你未启动图会话"
+                  "或者在图会话中没有提供占位符具体的值" + str(self.tensor), is_raise=True, exc_info=err)
+        return self.tensor.output_value
+
+    def auto_output(self):
+        x, = self.tensor.input_nodes
+        if x.tensor.output_value is None:
+            x.auto_output()
+
+        self.compute_output()
+        return self.tensor.output_value
+
+    def compute_gradient(self, grad=None):
+        # input_value = self.tensor.input_nodes[0].tensor.output_value
+
+        if grad is None:
+            grad = np.ones_like(self.tensor.output_value)
+
+        return np.reshape(grad, self.old_shape)
+
+
 def compute_gradients(target_op):
     grad_table = dict()
 
@@ -512,6 +547,7 @@ def compute_gradients(target_op):
 
     visited = set()
     visited.add(target_op)
+    compute_gradient_cache = {}
 
     while not queue.empty():
         node = queue.get()
@@ -524,11 +560,27 @@ def compute_gradients(target_op):
 
                 # grad_wrt_output_node_output = grad_table[output_node]
                 grad_wrt_output_node_output = grad_table.get(output_node, None)
+
                 if grad_wrt_output_node_output is None:
                     continue
 
-                grad_wrt_node_output = output_node.compute_gradient(grad_wrt_output_node_output)
+                grad_wrt_node_output, cache_num = compute_gradient_cache.get(output_node, (None, None))
+
+                if grad_wrt_node_output is None or cache_num < 1:
+                    # 不满足缓存条件
+                    grad_wrt_node_output = output_node.compute_gradient(grad_wrt_output_node_output)
+                else:
+                    compute_gradient_cache[output_node][1] -= 1
+
+                    # if compute_gradient_cache[output_node][1] < 1:
+                    #     del compute_gradient_cache[output_node]
+
                 if len(output_node.tensor.input_nodes) > 1:
+                    # print(grad_wrt_node_output)
+                    if cache_num is None or cache_num < 0:
+                        compute_gradient_cache[output_node] = [grad_wrt_node_output,
+                                                               output_node.tensor.input_nodes.__len__() - 1]
+
                     input_node_index = output_node.tensor.input_nodes.index(node)
                     grads_wrt_node_output.append(grad_wrt_node_output[input_node_index])
                 else:

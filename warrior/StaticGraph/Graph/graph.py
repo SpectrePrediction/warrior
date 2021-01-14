@@ -18,6 +18,9 @@ class Graph(object):
         global DEFAULT_GRAPH
         DEFAULT_GRAPH = builtins.DEFAULT_GRAPH = self.old_graph
 
+    def get_graph_id(self):
+        return " in graph: " + str(self).split(' ')[-1].split('>')[0]
+
     def get_op_default_name(self, class_name):
         """
         得到操作节点默认名字
@@ -33,8 +36,12 @@ class Graph(object):
             self.op_default_name[class_name] = default_name_num + 1
         else:
             self.op_default_name[class_name] = 1
-        return str(self.op_default_name.get(class_name, None)) + \
-               " in graph: " + str(self).split(' ')[-1].split('>')[0]
+
+        default_name = str(class_name).split(".")[-1].split("'")[0] + \
+            str(self.op_default_name.get(class_name, None)) + \
+            self.get_graph_id()
+
+        return default_name
 
     def as_default(self):
         """

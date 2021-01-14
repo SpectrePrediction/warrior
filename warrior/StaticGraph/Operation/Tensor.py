@@ -40,6 +40,17 @@ class Tensor(object):
                " dtype: " + str(self.dtype) + \
                " shape: " + str(self.get_shape()) + ">"
 
+    def get_save_information(self):
+        """
+        优化后的保存信息
+        可以大幅减少保存模型的大小
+        这与str(self)区分开来
+        仅仅保存需要用到的name和type
+        :return: str
+        """
+        return "name:'" + self.name + \
+               "' dtype: " + str(self.dtype)
+
     def get_shape(self):
         """
         取得Tensor中节点值的维度
