@@ -3,11 +3,12 @@
 
 ## 勇士深度学习框架
 ##### (仅供学习，当然如果你想用它来训练我也支持，如果你想清楚的话)
-当前版本1.5.0
+当前版本1.1.11</br>
+（上一个版本号错误，他并非是1.5.0而是1.1.5)</br>
 
 ## 勇士基于什么、有什么要求？
 
-基于numpy</br>
+纯基于numpy</br>
 使用起来没什么要求</br>
 
 ## 勇士实现了什么
@@ -18,6 +19,7 @@
 节点中还有熟悉的nn模块😀（如果你喜欢tensorflow1.x的话)</br>
 其中实现的节点并不多（但你可以自己实现一个节点)</br>
 其要求就是实现节点的计算和求导</br>
+比如现在已有的卷积conv2d节点，他就属于nn模块(版本>=1.1.11)</br>
 
 动态图隶属 DynamicGraph 模块</br>
 其拥有fluid模块（是的，仿的PaddlePaddle飞桨的库的名字）</br>
@@ -37,6 +39,7 @@
 
 ### 3.自动反向传播以及更多Demo和完善的注释
 比如线性回归demo(动态图和静态图)</br>
+比如手写数字识别(卷积神经网络)demo</br>
 比如手写数字识别(全连接)demo</br>
 注释应当很完善吧(应该吧?)(我会补齐的)</br>
 
@@ -48,12 +51,13 @@
 ## 如何安装勇士？
 简单！这里提供whl</br>
 如果我没有上传GitHub那么可能是还没来得及</br>
-通过 [此链接](https://www.nullius.cn/wp-content/uploads/2020/07/warrior-1.5.0-py3-none-any.whl_.zip) 同样可以通过我的博客下载</br>
+通过 [此链接](https://www.nullius.cn/wp-content/uploads/2020/07/warrior-1.1.11-py3-none-any.zip) 同样可以通过我的博客下载</br>
 
-cmd进入 warrior-1.5.0-py3-none-any.whl 所在目录（是压缩包的先解压）</br>
+cmd进入 warrior-1.1.11-py3-none-any.whl 所在目录（是压缩包的先解压）</br>
 随后通过pip指令安装</br>
-> pip install warrior-1.5.0-py3-none-any.whl
+> pip install warrior-1.1.11-py3-none-any.whl
 
+如果没有numpy他会安装numpy</br>
 试一下是否安装成功</br>
 
 ```python
@@ -72,7 +76,7 @@ print(res)
 
 噢~抱歉,暂时没有文档呢... </br>
 不过我相信聪明的你一定能够很快的理解</br>
-这也是学习的一部分嘛</br>
+但提供了一些有启发性的Demo</br>
 
 ### 快速使用
 线性回归demo
@@ -106,8 +110,7 @@ with wr.Graph().as_default():
     bias = wr.Variable(np.random.normal(loc=0.0, scale=1.0, size=(1, 1)), name="bias")
 
     y = weight*x + bias
-    # sse和方差损失(等reduce mean可以变均方差损失,或者sse/批大小）
-    sse_loss = wr.ReduceSum(wr.Square(y - real_y))
+    sse_loss = wr.nn.SSELoss(y, real_y)
 
     # 梯度下降优化器
     optimizer = wr.train.GradientDescentOptimizer(learning_rate=0.005)
@@ -117,17 +120,17 @@ with wr.Graph().as_default():
         epoch = 30
 
         if os.path.exists(checkpoint_path) and using_restore:
-            sess.restore(checkpoint_path)
+            sess.restore(checkpoint_path, by_name=False)
 
         for step in range(epoch):
             loss = sess.run(sse_loss, feed_dict={
                 x: input_x, real_y: input_y
-            }, noauto_using_fast=True)
+            })
 
             print("step: {}, loss: {}".format(str(step), str(loss)))
             sess.run(train_op)
 
-        sess.save("test.emblem", is_cover=True)
+        sess.save(checkpoint_path, is_cover=True)
         # 与此相同，默认会自动补全后缀（也支持别的后缀但不建议)
         # sess.save("test", is_cover=True)
 
